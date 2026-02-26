@@ -317,7 +317,54 @@ Aujourd’hui nous restaurobs “le dernier backup”. Nous souhaitons **ajouter
 
 ![alt text](image-1.png)
 
-*..Décrir ici votre procédure de restauration (votre runbook)..*  
+*## Atelier 2 — Choisir son point de restauration
+
+### Principe
+
+Le CronJob `sqlite-backup` sauvegarde la base `app.db` toutes les minutes dans le PVC `pra-backup`
+sous la forme `app-{timestamp}.db`. Chaque fichier représente un point de restauration précis.
+Ce runbook permet de choisir n'importe lequel de ces points pour restaurer la base de données.
+
+---
+
+### Procédure de restauration (Runbook)
+
+#### Prérequis
+- Accès `kubectl` au cluster Kubernetes
+- Les fichiers `pra/50-job-restore-pitr.yaml` et `runbook-restore.sh` présents dans le repo
+
+#### Lancement
+```bash
+bash runbook-restore.sh
+```
+
+#### Déroulement automatique du runbook
+
+| Étape | Action |
+|-------|--------|
+| 1 | Arrêt du pod Flask (`replicas=0`) et suspension du CronJob de sauvegarde |
+| 2 | Liste des backups disponibles dans le PVC `pra-backup`, triés du plus récent au plus ancien |
+| 3 | Saisie interactive du fichier cible (ENTRÉE = dernier backup automatiquement) |
+| 4 | Lancement du Job Kubernetes `sqlite-restore-pitr` qui copie le fichier choisi vers `/data/app.db` |
+| 5 | Redémarrage du pod Flask (`replicas=1`) et réactivation du CronJob |
+| 6 | Vérification de l'état des pods |
+
+#### Vérification post-restauration
+```bash
+kubectl -n pra port-forward svc/flask 8080:80 >/tmp/web.log 2>&1 &
+curl http://localhost:8080/count
+curl http://localhost:8080/consultation
+curl http://localhost:8080/status
+```
+
+---
+
+### Résultat observé
+
+Lors du test, nous avons choisi le point de restauration `app-1772093945.db` (08:19)
+parmi 72 backups disponibles. Le job `sqlite-restore-pitr` s'est exécuté avec succès,
+le pod Flask a redémarré en 3 secondes et la base de données a bien été restaurée
+à l'état correspondant au point choisi..*  
   
 ---------------------------------------------------
 Evaluation
