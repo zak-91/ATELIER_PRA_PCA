@@ -315,6 +315,8 @@ Difficulté : Moyenne (~2 heures)
 ### **Atelier 2 : Choisir notre point de restauration**  
 Aujourd’hui nous restaurobs “le dernier backup”. Nous souhaitons **ajouter la capacité de choisir un point de restauration**.
 
+![alt text](image-1.png)
+
 *..Décrir ici votre procédure de restauration (votre runbook)..*  
   
 ---------------------------------------------------
