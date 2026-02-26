@@ -231,27 +231,73 @@ Faites preuve de pédagogie et soyez clair dans vos explications et procedures d
 **Exercice 1 :**  
 Quels sont les composants dont la perte entraîne une perte de données ?  
   
-*..Répondez à cet exercice ici..*
+*Seul le PVC pra-data entraîne une perte de données, et uniquement si le PVC pra-backup est également perdu ou si la sauvegarde est trop ancienne.
+
+Pod — Sa suppression n’entraîne aucune perte : les données ne résident pas dans le conteneur mais dans le PVC.
+
+PVC pra-data — Volume principal ; sa perte correspond au scénario PRA.
+
+PVC pra-backup — Sa perte simultanée avec pra-data supprime toute possibilité de restauration.
+
+CronJob sqlite-backup — Sa suppression n’efface pas les données mais empêche les sauvegardes futures, augmentant le RPO.*
 
 **Exercice 2 :**  
 Expliquez nous pourquoi nous n'avons pas perdu les données lors de la supression du PVC pra-data  
   
-*..Répondez à cet exercice ici..*
+*La base SQLite est stockée sur le PVC pra-data, non dans le conteneur.
+La suppression du pod ne détruit que le processus applicatif ; Kubernetes recrée un pod identique qui remonte le même PVC, retrouvant les données intactes.
+Le stockage persistant garantit donc la continuité des données malgré la volatilité des pods.*
 
 **Exercice 3 :**  
 Quels sont les RTO et RPO de cette solution ?  
   
-*..Répondez à cet exercice ici..*
+*RPO ≈ 1 minute : fréquence des sauvegardes du CronJob.
+
+RTO ≈ 5 à 10 minutes : durée nécessaire pour exécuter la procédure manuelle de restauration (arrêt du déploiement, suppression/recréation du PVC, relance du job de restauration).*
 
 **Exercice 4 :**  
 Pourquoi cette solution (cet atelier) ne peux pas être utilisé dans un vrai environnement de production ? Que manque-t-il ?   
   
-*..Répondez à cet exercice ici..*
+*.Elle manque de plusieurs garanties essentielles :
+
+Absence de réplication : les deux PVC sont sur le même cluster, donc vulnérables à une panne physique.
+
+Absence de chiffrement : les sauvegardes SQLite sont stockées en clair.
+
+Absence de supervision : aucune alerte en cas d’échec de sauvegarde ou de saturation du volume.
+
+Restauration manuelle : dépendance à un opérateur, RTO non maîtrisé.
+
+SQLite non adapté à la production : absence de réplication et de mécanismes de haute disponibilité.
+
+Aucune politique de rétention : une seule sauvegarde ou un historique non géré.*
   
 **Exercice 5 :**  
 Proposez une archtecture plus robuste.   
   
-*..Répondez à cet exercice ici..*
+*Changements clés par rapport à l'atelier
+1. Remplacer SQLite par PostgreSQL (ou MySQL)
+SQLite n'est pas conçu pour être répliqué ou partagé entre pods. PostgreSQL permet la réplication en streaming, les backups WAL, et supporte plusieurs connexions simultanées.
+2. Cluster Kubernetes multi-nœuds en production
+Déployer au minimum 3 nœuds (1 master + 2 workers) répartis sur des zones de disponibilité différentes. Utiliser un cloud managé : EKS (AWS), GKE (GCP), AKS (Azure).
+3. Réplication géographique (multi-AZ ou multi-région)
+Un second cluster en zone B sert de site de reprise. La base de données est répliquée en continu (streaming replication PostgreSQL). En cas de sinistre sur la zone A, le basculement vers la zone B peut être automatisé (ex: avec Patroni).
+4. Backups vers un stockage objet externe
+Remplacer les PVC backup par des sauvegardes vers S3 (ou équivalent) avec un outil comme pgBackRest ou Velero :
+
+Sauvegardes chiffrées
+Rétention configurable
+Indépendant du cluster (résiste à la perte totale du cluster)
+
+5. Haute disponibilité applicative
+
+Déployer au minimum 2 réplicas du pod Flask avec un HPA (Horizontal Pod Autoscaler)
+Configurer des PodDisruptionBudgets pour garantir la disponibilité lors des mises à jour
+
+6. Monitoring et alerting
+Ajouter Prometheus + Grafana pour monitorer les métriques (lag de réplication, âge du dernier backup, état des pods) et déclencher des alertes avant qu'un sinistre ne survienne.
+
+Cette architecture passe d'un PRA artisanal sur un seul nœud à une solution cloud-native résiliente, avec séparation des responsabilités entre la couche applicative (K8s), la couche données (PostgreSQL répliqué) et le stockage de sauvegarde (objet externe).*
 
 ---------------------------------------------------
 Séquence 6 : Ateliers  
